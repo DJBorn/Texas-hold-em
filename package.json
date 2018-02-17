@@ -1,0 +1,24 @@
+{
+  "name": "texas-hold-em",
+  "version": "1.0.0",
+  "description": "Texas hold em card game",
+  "main": "app.js",
+  "dependencies": {
+    "express": "*",
+    "socket.io": "*"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DJBorn/Texas-hold-em.git"
+  },
+  "author": "Daniel Jung",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DJBorn/Texas-hold-em/issues"
+  },
+  "homepage": "https://github.com/DJBorn/Texas-hold-em#readme"
+}
