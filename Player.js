@@ -1,5 +1,6 @@
 class Player {
-    constructor(money = 0) {
+    constructor(id, money) {
+        this.id = id;
         this.money = money;
     }
 
@@ -12,6 +13,6 @@ class Player {
     }
 }
 
-var myPlayer = new Player(3);
+var myPlayer = new Player(0, 3);
 myPlayer.addMoney(234123);
 console.log(myPlayer.money);

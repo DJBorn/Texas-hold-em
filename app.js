@@ -13,7 +13,3 @@ http.listen(port, () => {
 app.get('/', (req, res) => {
     res.send('Invalid Endpoint');
 });
-
-rl.on('line', (input)=> {
-    console.log(`${input}`);
-})
