@@ -24,7 +24,7 @@ class Deck {
     draw() {
         if(this.deck.length === 0)
             throw 'Error: There are no cards in this deck';
-        return this.deck.splice(-1, 1);
+        return this.deck.pop();
     }
 
     // Swap cards given their indexes in the deck
