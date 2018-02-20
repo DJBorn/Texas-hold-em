@@ -22,6 +22,7 @@ class Texasholdem {
         this.minimumBet = minimumBet;
         this.totalPlayers = 0;
         this.deck;
+        this.communityCards = [];
         this.currentBetter = null;
         this.currentBet;
         this.gameState = 'ready';
@@ -58,10 +59,9 @@ class Texasholdem {
             throw `Error: Cannot prepare round during ${this.gameState} phase`
         this.deck = new Deck();
         this.deck.shuffle();
+        this.communityCards = [];
         
-        this.dealer.next.bet = this.minimumBet/2;
-        this.dealer.next.next.bet = this.minimumBet;
-        this.currentBet = this.minimumBet;
+        this._resetBetPhase();
     }
 
     // Remove player by id
@@ -75,7 +75,6 @@ class Texasholdem {
                 this._removePlayer(currentPlayer);
             currentPlayer = currentPlayer.next;
         }
-
     }
 
     getModel() {
@@ -116,6 +115,7 @@ class Texasholdem {
         model = {
             gamePhase: this.gameState,
             currentBet: this.currentBet,
+            communityCards: this.communityCards,
             timer: this.timer,
             players: players
         }
@@ -131,7 +131,6 @@ class Texasholdem {
             currentPlayer.hand.push(this.deck.draw());
             currentPlayer = currentPlayer.next;
         }
-        this.currentBetter = this.dealer.next.next.next;
         this.gameState = 'preflop';
     }
 
@@ -146,8 +145,10 @@ class Texasholdem {
     }
 
     getCurrentBetterOptions() {
-        if(this._numberOfValidPlayersLeft() < 2)
+        if(this._numberOfValidPlayersLeft() < 2) {
+            this._endBetPhase();
             return null;
+        }
         while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
             this.currentBetter = this.currentBetter.next;
         }
@@ -158,8 +159,10 @@ class Texasholdem {
                 options = options.concat(['call', 'raise']);
             options.push('fold');
         }
-        else if(this.currentBetter.move !== null)
+        else if(this.currentBetter.move !== null) {
+            this._endBetPhase();
             return null;
+        }
         else
             options = options.concat(['bet', 'check', 'fold']);
         return {
@@ -187,17 +190,115 @@ class Texasholdem {
             case 'raise':
             case 'bet':
                 this.currentBet += raiseAmount;
+                if(this.currentBet === this.currentBetter.money)
+                    move = 'allin';
             case 'call':
                 this.currentBetter.bet = this.currentBet;
                 break;
             case 'allin':
-
+                this.currentBetter.bet = this.currentBetter.money;
+                if(this.currentBetter.bet > this.currentBet)
+                    this.currentBet = this.currentBetter.bet;
                 break;
             case 'check':
                 break;
         }
         this.currentBetter.move = move;
         this.currentBetter = this.currentBetter.next;
+        this.getCurrentBetterOptions();
+    }
+
+    drawFlop() {
+        if(this.gameState !== 'flopReady')
+            throw `Error: Cannot draw flop during ${this.gameState} phase`;
+
+        // Burn Card
+        this.deck.draw();
+
+        for(let i = 0; i < 3; i++) {
+            this.communityCards.push(this.deck.draw());
+        }
+
+        // Reset the betting phase
+        this._resetBetPhase();
+
+        this.gameState = 'flop';
+    }
+
+    drawTurn() {
+        if(this.gameState !== 'turnReady')
+            throw `Error: Cannot draw turn during ${this.gameState} phase`;
+
+        // Burn Card
+        this.deck.draw();
+
+        this.communityCards.push(this.deck.draw());
+
+        // Reset the betting phase
+        this._resetBetPhase();
+
+        this.gameState = 'turn';
+    }
+
+    drawRiver() {
+        if(this.gameState !== 'riverReady')
+            throw `Error: Cannot draw river during ${this.gameState} phase`;
+
+        // Burn Card
+        this.deck.draw();
+
+        this.communityCards.push(this.deck.draw());
+
+        // Reset the betting phase
+        this._resetBetPhase();
+
+        this.gameState = 'river';
+    }
+
+    getRankings() {
+        
+    }
+    
+
+
+    _resetBetPhase() {
+        let currentPlayer = this.dealer;
+        for(let i = 0; i < this.totalPlayers; i++) {
+            // If the game is just starting, reset everyones moves, otherwise just reset those who have not folded or allined
+            if(this.gameState === 'ready' || (currentPlayer.move !== 'fold' && currentPlayer.move !== 'allin'))
+                currentPlayer.move = null;
+            // Reset bets if game is just starting
+            if(this.gameState === 'ready')
+                currentPlayer.bet = 0;
+            currentPlayer = currentPlayer.next;
+        }
+
+        // Set the big and small blind bets for new games
+        if(this.gameState === 'ready') {
+            this.currentBetter = this.dealer.next.next.next;
+            this.dealer.next.bet = this.minimumBet/2;
+            this.dealer.next.next.bet = this.minimumBet;
+            this.currentBet = this.minimumBet;
+        }
+        else
+            this.currentBetter = this.dealer.next;
+        
+    }
+
+    _endBetPhase() {
+        switch(this.gameState) {
+            case 'preflop':
+                this.gameState = 'flopReady';
+                break;
+            case 'flop':
+                this.gameState = 'turnReady';
+                break;
+            case 'turn':
+                this.gameState = 'riverReady';
+                break;
+            case 'river':
+                this.gameState = 'showdown';
+        }
     }
 
     _numberOfValidPlayersLeft() {
@@ -208,33 +309,6 @@ class Texasholdem {
                 playersLeft--;
         }
         return playersLeft;
-    }
-
-    _initializeBetting() {
-        var currentPlayer = this.dealer;
-        var playersRemaining = this.totalPlayers;
-
-        // Count how many players are left in the play
-        for(let i = 0; i < this.totalPlayers; i++) {
-            // Players who have went all in or folded will not get a turn
-            if(!(currentPlayer.move === 'allin' || currentPlayer.move === 'fold'))
-                currentPlayer.move = null;
-            else
-                playersRemaining--;
-            currentPlayer = currentPlayer.next;
-        }
-        // If the game is in preflop, then the next better is the player after the Big Blind
-        if(this.gameState === 'preflop') {
-            this.currentBetter = this.dealer.next.next.next;
-            this.currentBet = this.minimumBet;
-        }
-        else {
-            this.currentBetter = this.dealer.next;
-        }
-
-        // If there are less than 2 players remaining, then move to the next stage of the game
-        if(playersRemaining < 2)
-            _setNextStage();
     }
 
     _setNextStage() {
@@ -260,15 +334,6 @@ class Texasholdem {
         player.next.prev = player.prev;
         this.totalPlayers--;
     }
-
-    // Change this to socket id or someother
-    playerActionById(playerId, action) {
-        if(['fold', 'call', 'allin', 'raise', 'bet', 'check'].indexOf(action) < 0)
-            return;
-        if(this.currentBetter.playerId === playerId) {
-            //this.currentBetter.
-        }
-    }
 }
 
 var myTable = new Texasholdem();
@@ -278,21 +343,68 @@ myTable.addPlayer(2);
 
 myTable.prepareRound();
 myTable.dealCards();
-let CB = myTable.getCurrentBetterOptions();
 
-myTable.makeMove(CB.playerId, 'call', 99900);
+let bets = [];
 
-let CB2 = myTable.getCurrentBetterOptions();
+bets.push(myTable.getCurrentBetterOptions());
 
-myTable.makeMove(CB2.playerId, 'raise', 999000);
+myTable.makeMove(bets[bets.length-1].playerId, 'raise', 1000);
 
-let CB3 = myTable.getCurrentBetterOptions();
+bets.push(myTable.getCurrentBetterOptions());
 
-myTable.makeMove(CB3.playerId, 'allin', 99900);
+myTable.makeMove(bets[bets.length-1].playerId, 'raise', 1000);
 
-let CB4 = myTable.getCurrentBetterOptions();
-console.log(CB);
-console.log(CB2);
-console.log(CB3);
-console.log(CB4);
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 99900);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+myTable.drawFlop();
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'bet', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+myTable.drawTurn();
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+myTable.drawRiver();
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+console.log(bets);
 console.log(myTable);

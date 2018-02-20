@@ -1,7 +1,7 @@
 class Card {
     constructor(rank, suit) {
-        let suits = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
-        let ranks = { Two: 2, Three: 3, Four: 4, Five: 5, Six: 6, Seven: 7, Eight: 8, 
+        const suits = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
+        const ranks = { Two: 2, Three: 3, Four: 4, Five: 5, Six: 6, Seven: 7, Eight: 8, 
                       Nine: 9, Ten: 10, Jack: 11, Queen: 12, King: 13, Ace: 14 };
 
         // Check if the given Suit and Rank are valid
@@ -14,8 +14,8 @@ class Card {
     }
 
     isLessThan(card) {
-        let suits = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
-        let ranks = { Two: 2, Three: 3, Four: 4, Five: 5, Six: 6, Seven: 7, Eight: 8, 
+        const suits = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
+        const ranks = { Two: 2, Three: 3, Four: 4, Five: 5, Six: 6, Seven: 7, Eight: 8, 
                       Nine: 9, Ten: 10, Jack: 11, Queen: 12, King: 13, Ace: 14 };
 
         // Check if the card is valid
