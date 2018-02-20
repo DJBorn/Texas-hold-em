@@ -29,9 +29,3 @@ class Card {
         return false;
     }
 }
-
-var myCard = new Card("Ace", "Spades");
-var myCard2 = new Card("Ten", "Hearts");
-var myCard3 = new Card("Ten", "Diamonds");
-
-console.log(myCard2.isLessThan(myCard3));

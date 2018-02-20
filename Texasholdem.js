@@ -1,26 +1,38 @@
 class Texasholdem {
-    constructor(minimumBet) {
+    /*
+        Class "Interface"
+        constructor
+        addPlayer(Player)
+        prepareRound()
+        dealCards()
+        getNextBetter() returns Player
+        getPlayerOptions(Player) return list of options
+        makeMove(Player, move)
+        drawFlop()
+        drawTurn()
+        drawRiver()
+        getRoundWinner() returns Player
+        getMoneyAllocation()
+        getWinner() return Player
+        getModel()
+    */
+    constructor(playerStack = 1000000, minimumBet = 1000) {
+        this.playerStack = playerStack;
         this.dealer = null;
         this.minimumBet = minimumBet;
         this.totalPlayers = 0;
-        this.deck = new Deck();
+        this.deck;
         this.currentBetter = null;
-        this.timer = 0;
         this.currentBet;
         this.gameState = 'ready';
     }
 
-    addPlayer(player) {
-        if(!(player instanceof Player))
-            throw `Error: ${player} is not a Player`;
-        if(player.money < this.minimumBet) {
-            console.log(`${player} does not have enough money to play`);
-            return;
-        }
+    addPlayer(playerId) {
+        if(!Number.isInteger(playerId))
+            throw `Error: ${playerId} is not a valid playerId`;
         var newPlayer = {
-            playerId: player.id,
-            player: player,
-            eliminated: false,
+            playerId: playerId,
+            money: this.playerStack,
             hand: [],
             bet: 0,
             move: null,
@@ -41,6 +53,17 @@ class Texasholdem {
         this.totalPlayers++;
     }
 
+    prepareRound() {
+        if(this.gameState !== 'ready')
+            throw `Error: Cannot prepare round during ${this.gameState} phase`
+        this.deck = new Deck();
+        this.deck.shuffle();
+        
+        this.dealer.next.bet = this.minimumBet/2;
+        this.dealer.next.next.bet = this.minimumBet;
+        this.currentBet = this.minimumBet;
+    }
+
     // Remove player by id
     removePlayerById(id) {
         if(!(Number.isInteger(id)))
@@ -53,19 +76,6 @@ class Texasholdem {
             currentPlayer = currentPlayer.next;
         }
 
-    }
-
-    // Remove player by expected player object in linked list
-    _removePlayer(player) {
-        if(!player.next || !player.prev || !Number.isInteger(player.playerId))
-            throw `Error: ${player} is not a Player`;
-
-        // If the player is the dealer, set the dealer to the next player
-        if(player.playerId === this.dealer.playerId)
-            this.dealer = this.dealer.next;
-        player.prev.next = player.next;
-        player.next.prev = player.prev;
-        this.totalPlayers--;
     }
 
     getModel() {
@@ -82,9 +92,9 @@ class Texasholdem {
             else if(currentPlayer.prev.prev === this.dealer)
                 role = 'big_blind';
             var player = {
-                name: currentPlayer.player.name,
+                playerId: currentPlayer.playerId,
                 role: role,
-                money: currentPlayer.player.money,
+                money: currentPlayer.money,
                 bet: currentPlayer.bet,
                 move: currentPlayer.move,
                 next: null,
@@ -112,51 +122,92 @@ class Texasholdem {
         return model;
     }
 
-    startGame() {
+    dealCards() {
         if(this.gameState !== 'ready')
-            return;
-        if(this.totalPlayers < 2)
-            throw 'Error: Not enough players to start the game';
-        this.deck.shuffle();
+            throw `Error: Cannot deal cards during ${this.gameState} phase`;
         
-        this.dealer.next.bet = this.minimumBet/2,
-        this.dealer.next.next.bet = this.minimumBet;
-
-        this._dealCards();
-        this.gameState = 'dealing';
-    }
-
-    startPreflop() {
-        if(this.gameState !== 'dealing')
-            return;
-        this.gameState = 'preflop'
-        // preflop
-        this._initializeBetting();
-        this._bettingPhase();
-    }
-
-    startFlop() {
-
-    }
-
-    _dealCards() {
         var currentPlayer = this.dealer.next;
         for(let i = 0; i < this.totalPlayers*2; i++) {
             currentPlayer.hand.push(this.deck.draw());
             currentPlayer = currentPlayer.next;
         }
+        this.currentBetter = this.dealer.next.next.next;
+        this.gameState = 'preflop';
     }
 
-    _bettingPhase() {
-        var roundEnded = false;
-        while(!roundEnded) {
-            if(currentBetter.move === 'allin' || currentBetter.move === 'fold')
-                currentBetter = currentBetter.next;
+    getCurrentBetter() {
+        if(this._numberOfValidPlayersLeft() < 2)
+            return null;
+        while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
+            this.currentBetter = this.currentBetter.next;
         }
+        
+        return this.currentBetter;
     }
 
-    _waitForPlayer() {
+    getCurrentBetterOptions() {
+        if(this._numberOfValidPlayersLeft() < 2)
+            return null;
+        while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
+            this.currentBetter = this.currentBetter.next;
+        }
+        
+        let options = ['allin'];
+        if(this.currentBetter.bet < this.currentBet) {
+            if(this.currentBetter.money > this.currentBet)
+                options = options.concat(['call', 'raise']);
+            options.push('fold');
+        }
+        else if(this.currentBetter.move !== null)
+            return null;
+        else
+            options = options.concat(['bet', 'check', 'fold']);
+        return {
+            playerId: this.currentBetter.playerId,
+            options: options
+        };
+    }
 
+    makeMove(playerId, move, raiseAmount) {
+        const currentBetter = this.getCurrentBetterOptions();
+        if(currentBetter.playerId !== playerId)
+            throw `Error: It is not player${playerId}'s turn`;
+        if(currentBetter.options.indexOf(move) < 0)
+            throw `Error: ${move} is an invalid move for player${playerId}`;
+        if(move === 'raise' || move === 'bet') {
+            if(!Number.isInteger(raiseAmount) || raiseAmount < this.minimumBet)
+                throw `Error: Invalid ${move} amount: ${raiseAmount}`;
+            if(this.currentBet + raiseAmount > this.currentBetter.money)
+                throw `Error: player${playerId} cannot ${move} \$${raiseAmount} with current bet of \$${this.currentBet}. Player only has \$${this.currentBetter.money}`;
+        }
+
+        switch(move) {
+            case 'fold':
+                break;
+            case 'raise':
+            case 'bet':
+                this.currentBet += raiseAmount;
+            case 'call':
+                this.currentBetter.bet = this.currentBet;
+                break;
+            case 'allin':
+
+                break;
+            case 'check':
+                break;
+        }
+        this.currentBetter.move = move;
+        this.currentBetter = this.currentBetter.next;
+    }
+
+    _numberOfValidPlayersLeft() {
+        let playersLeft = this.totalPlayers;
+        let currentPlayer = this.currentBetter;
+        for(let i = 0; i < this.totalPlayers; i++) {
+            if(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0)
+                playersLeft--;
+        }
+        return playersLeft;
     }
 
     _initializeBetting() {
@@ -197,8 +248,17 @@ class Texasholdem {
             this.gameState = 'showdown';
     }
 
-    getTime() {
-        return this.timer;
+    // Remove player by expected player object in linked list
+    _removePlayer(player) {
+        if(!player.next || !player.prev || !Number.isInteger(player.playerId))
+            throw `Error: ${player} is not a Player`;
+
+        // If the player is the dealer, set the dealer to the next player
+        if(player.playerId === this.dealer.playerId)
+            this.dealer = this.dealer.next;
+        player.prev.next = player.next;
+        player.next.prev = player.prev;
+        this.totalPlayers--;
     }
 
     // Change this to socket id or someother
@@ -211,24 +271,28 @@ class Texasholdem {
     }
 }
 
-var myTable = new Texasholdem(2);
-myTable.addPlayer(new Player(0, 'Alice', 200));
-myTable.addPlayer(new Player(1, 'Bob', 300));
-myTable.addPlayer(new Player(2, 'Charlie', 300));
-myTable.addPlayer(new Player(3, 'Darius', 200));
-myTable.removePlayerById(4);
+var myTable = new Texasholdem();
+myTable.addPlayer(0);
+myTable.addPlayer(1);
+myTable.addPlayer(2);
+
+myTable.prepareRound();
+myTable.dealCards();
+let CB = myTable.getCurrentBetterOptions();
+
+myTable.makeMove(CB.playerId, 'call', 99900);
+
+let CB2 = myTable.getCurrentBetterOptions();
+
+myTable.makeMove(CB2.playerId, 'raise', 999000);
+
+let CB3 = myTable.getCurrentBetterOptions();
+
+myTable.makeMove(CB3.playerId, 'allin', 99900);
+
+let CB4 = myTable.getCurrentBetterOptions();
+console.log(CB);
+console.log(CB2);
+console.log(CB3);
+console.log(CB4);
 console.log(myTable);
-
-myTable.startGame();
-
-var myPromise = new Promise(function(resolve, reject){
-    setTimeout(() => {
-        resolve('hehe');
-    }, 1000);
-});
-myPromise.then(function(x) {
-    console.log(x);
-}).catch(function(err) {
-    console.log(err);
-});
-console.log('hello');

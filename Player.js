@@ -13,7 +13,3 @@ class Player {
         this.money += pay;
     }
 }
-
-var myPlayer = new Player(0, 3);
-myPlayer.addMoney(234123);
-console.log(myPlayer.money);

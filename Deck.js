@@ -34,9 +34,3 @@ class Deck {
         this.deck[j] = temp;
     }
 }
-
-var myDeck = new Deck();
-myDeck.shuffle();
-console.log(myDeck.deck[51]);
-console.log(myDeck.draw());
-console.log(myDeck.deck);
