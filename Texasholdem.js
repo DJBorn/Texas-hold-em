@@ -256,10 +256,29 @@ class Texasholdem {
     }
 
     getRankings() {
-        
-    }
-    
+        let currentPlayer = this.dealer;
+        let rankings = [];
+        for(let i = 0; i < this.totalPlayers; i++) {
+            rankings.push({
+                playerId: currentPlayer.playerId,
+                hand: new Hand([...currentPlayer.hand, ...this.communityCards]),
+                move: currentPlayer.move
+            });
+            currentPlayer = currentPlayer.next;
+        }
+        rankings.sort((player1, player2) => {
+            if(player2.hand.isLessThan(player1.hand))
+                return -1;
+            if(player1.hand.isLessThan(player2.hand))
+                return 1;
+            return 0;
+        });
 
+        return rankings;
+    }
+
+    _collectMoney(amount) {
+    }
 
     _resetBetPhase() {
         let currentPlayer = this.dealer;
@@ -406,5 +425,6 @@ myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
 
 bets.push(myTable.getCurrentBetterOptions());
 
+console.log(myTable.getRankings());
 console.log(bets);
 console.log(myTable);
