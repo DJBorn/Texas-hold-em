@@ -1,8 +1,8 @@
 class Deck {
     constructor() {
         this.deck = [];
-        let suits = ['Clubs', 'Diamonds', 'Hearts', 'Spades'];
-        let ranks = ['Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King', 'Ace'];
+        const suits = ['Clubs', 'Diamonds', 'Hearts', 'Spades'];
+        const ranks = ['Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King', 'Ace'];
 
         // Create standard deck of 52 cards
         for(let i = 0; i < 4; ++i)
@@ -23,7 +23,7 @@ class Deck {
     // Draw the last card in the deck
     draw() {
         if(this.deck.length === 0)
-            throw 'Error: There are no cards in this deck';
+            throw Error('There are no cards in this deck');
         return this.deck.pop();
     }
 

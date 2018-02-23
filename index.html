@@ -1,7 +1,29 @@
-<div id="timer"></div>
 <script src="Card.js"></script>
 <script src="Deck.js"></script>
 <script src="Hand.js"></script>
 <script src="Player.js"></script>
 <script src="Texasholdem.js"></script>
 <script src="ui.js"></script>
+
+<div id='gamephase'></div>
+<div id='playersturn'></div>
+<div id='cards'></div>
+<div id='community'></div>
+<button onclick="playerMove('call')">Call</button>
+<button onclick="playerMove('fold')">Fold</button>
+<button onclick="playerMove('check')">Check</button>
+<button onclick="playerMove('raise')">Raise</button>
+<button onclick="playerMove('bet')">Bet</button>
+<button onclick="playerMove('allin')">All in</button>
+<input id="raise" type="number">
+<button onclick="myTable.prepareRound()">Prepare round</button>
+<button onclick="myTable.dealCards()">Deal cards</button>
+<button onclick="myTable.getCurrentBetterOptions()">Get player options</button>
+<button onclick="myTable.drawFlop()">Draw Flop</button>
+<button onclick="myTable.drawTurn()">Draw Turn</button>
+<button onclick="myTable.drawRiver()">Draw River</button>
+<button onclick="myTable.getRankings()">Get Rankings</button>
+<br>
+<div id='player0'></div>
+<div id='player1'></div>
+<div id='winner'></div>

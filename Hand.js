@@ -1,10 +1,10 @@
 class Hand {
     constructor(hand = []) {
         if(!Array.isArray(hand))
-            throw `Error: ${hand} is not an array`;
+            throw Error(`${hand} is not an array`);
         for(let i = 0; i < hand.length; i++)
             if(!(hand[i] instanceof Card))
-                throw `Error: ${hand[i]} is not a Card`;
+                throw Error(`${hand[i]} is not a Card`);
         
         this._ranking = 0, this._kicker1 = 0, this._kicker2 = 0, this._kicker3 = 0, this._kicker4 = 0, this._kicker5;
         const suits = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
@@ -29,7 +29,7 @@ class Hand {
 
     addCard(card) {
         if(!(card instanceof Card))
-            throw `Error: ${card} is not a Card`;
+            throw Error(`${card} is not a Card`);
         
         const suits = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
         const ranks = { Two: 0, Three: 1, Four: 2, Five: 3, Six: 4, Seven: 5, Eight: 6, 
@@ -40,11 +40,11 @@ class Hand {
 
     isLessThan(hand) {
         if(!(hand instanceof Hand))
-            throw `Error: ${hand} is not a hand`;
+            throw Error(`${hand} is not a hand`);
         if(this._totalCards < 5)
-            throw `Error: Cannot get poker hand value of hand with ${this._hand.length} cards`;
+            throw Error(`Cannot get poker hand value of hand with ${this._hand.length} cards`);
         if(hand.length < 5)
-            throw `Error: Cannot get poker hand value of hand with ${hand} cards`;
+            throw Error(`Cannot get poker hand value of hand with ${hand} cards`);
         if(this._ranking < hand._ranking)
             return true;
         if(this._ranking > hand._ranking)

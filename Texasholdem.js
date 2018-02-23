@@ -26,18 +26,18 @@ class Texasholdem {
         this.currentBetter = null;
         this.currentBet;
         this.gameState = 'ready';
+        this.bettingRoundStarted = false;
     }
 
     addPlayer(playerId, money = 1000000) {
         if(!Number.isInteger(playerId))
-            throw `Error: ${playerId} is not a valid playerId`;
+            throw Error(`${playerId} is not a valid playerId`);
         var newPlayer = {
             playerId: playerId,
             money: money,
             hand: [],
             bet: 0,
             move: null,
-            queuedMove: null,
             prev: null,
             next: null
         }
@@ -56,7 +56,7 @@ class Texasholdem {
 
     prepareRound() {
         if(this.gameState !== 'ready')
-            throw `Error: Cannot prepare round during ${this.gameState} phase`
+            throw Error(`Cannot prepare round during ${this.gameState} phase`);
         this.deck = new Deck();
         this.deck.shuffle();
         this.communityCards = [];
@@ -67,7 +67,7 @@ class Texasholdem {
     // Remove player by id
     removePlayerById(id) {
         if(!(Number.isInteger(id)))
-            throw `Error: ${id} must be an integer`;
+            throw Error(`${id} must be an integer`);
 
         var currentPlayer = this.dealer;
         for(let i = 0; i < this.totalPlayers; i++) {
@@ -124,33 +124,32 @@ class Texasholdem {
 
     dealCards() {
         if(this.gameState !== 'ready')
-            throw `Error: Cannot deal cards during ${this.gameState} phase`;
+            throw Error(`Cannot deal cards during ${this.gameState} phase`);
 
         var currentPlayer = this.dealer.next;
         for(let i = 0; i < this.totalPlayers*2; i++) {
-            currentPlayer.hand.push(this.deck.draw());
+            if(currentPlayer.money > 0)
+                currentPlayer.hand.push(this.deck.draw());
             currentPlayer = currentPlayer.next;
         }
         this.gameState = 'preflop';
     }
 
-    getCurrentBetter() {
-        if(this._numberOfValidPlayersLeft() < 2)
-            return null;
-        while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
-            this.currentBetter = this.currentBetter.next;
-        }
-
-        return this.currentBetter;
-    }
-
     getCurrentBetterOptions() {
-        if(this._numberOfValidPlayersLeft() < 2) {
+        if(!this.currentBetter)
+            return null;
+        if(this._numberOfValidPlayersLeft() < 2 && !this.bettingRoundStarted) {
             this._endBetPhase();
             return null;
         }
+        let playersVisited = 0;
         while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
             this.currentBetter = this.currentBetter.next;
+            playersVisited++;
+            if(playersVisited === this.totalPlayers) {
+                this._endBetPhase();
+                return null;
+            }
         }
 
         let options = ['allin'];
@@ -173,15 +172,18 @@ class Texasholdem {
 
     makeMove(playerId, move, raiseAmount) {
         const currentBetter = this.getCurrentBetterOptions();
+
+        if(['preflop', 'flop', 'turn', 'river'].indexOf(this.gameState) < 0)
+            throw Error(`Cannot make a move during ${this.gameState} phase`);
         if(currentBetter.playerId !== playerId)
-            throw `Error: It is not player${playerId}'s turn`;
+            throw Error(`It is not player${playerId}'s turn`);
         if(currentBetter.options.indexOf(move) < 0)
-            throw `Error: ${move} is an invalid move for player${playerId}`;
+            throw Error(`${move} is an invalid move for player${playerId}`);
         if(move === 'raise' || move === 'bet') {
             if(!Number.isInteger(raiseAmount) || raiseAmount < this.minimumBet)
-                throw `Error: Invalid ${move} amount: ${raiseAmount}`;
+                throw Error(`Invalid ${move} amount: ${raiseAmount}`);
             if(this.currentBet + raiseAmount > this.currentBetter.money)
-                throw `Error: player${playerId} cannot ${move} \$${raiseAmount} with current bet of \$${this.currentBet}. Player only has \$${this.currentBetter.money}`;
+                throw Error(`player${playerId} cannot ${move} \$${raiseAmount} with current bet of \$${this.currentBet}. Player only has \$${this.currentBetter.money}`);
         }
 
         switch(move) {
@@ -205,12 +207,13 @@ class Texasholdem {
         }
         this.currentBetter.move = move;
         this.currentBetter = this.currentBetter.next;
-        this.getCurrentBetterOptions();
+        this.bettingRoundStarted = true;
+        //this.getCurrentBetterOptions();
     }
 
     drawFlop() {
         if(this.gameState !== 'flopReady')
-            throw `Error: Cannot draw flop during ${this.gameState} phase`;
+            throw Error(`Cannot draw flop during ${this.gameState} phase`);
 
         // Burn Card
         this.deck.draw();
@@ -238,7 +241,7 @@ class Texasholdem {
 
     drawTurn() {
         if(this.gameState !== 'turnReady')
-            throw `Error: Cannot draw turn during ${this.gameState} phase`;
+            throw Error(`Cannot draw turn during ${this.gameState} phase`);
 
         // Burn Card
         this.deck.draw();
@@ -253,7 +256,7 @@ class Texasholdem {
 
     drawRiver() {
         if(this.gameState !== 'riverReady')
-            throw `Error: Cannot draw river during ${this.gameState} phase`;
+            throw Error(`Cannot draw river during ${this.gameState} phase`);
 
         // Burn Card
         this.deck.draw();
@@ -269,6 +272,8 @@ class Texasholdem {
     getRankings() {
         let currentPlayer = this.dealer;
         let rankings = [];
+
+        // Create object specifying the player, their hand, the last move they made, and his payout
         for(let i = 0; i < this.totalPlayers; i++) {
             rankings.push({
                 player: currentPlayer,
@@ -278,6 +283,8 @@ class Texasholdem {
             });
             currentPlayer = currentPlayer.next;
         }
+
+        // Sort the players by their hand, fold being absolutely last
         rankings.sort((player1, player2) => {
             if(player1.hand.isLessThan(player2.hand) || player1.move === 'fold')
                 return 1;
@@ -301,17 +308,23 @@ class Texasholdem {
             groupIndex++;
         }
 
+        // Sort the groups of ties by how much they bet (lowest to highest)
         for(let i = 0; i < rankingGroups.length; i++) {
             rankingGroups[i].sort((player1, player2) => player1.bet - player2.bet);
         }
 
+        // For each group, take each person (from lowest to highest) and collect his bet from all other
+        // lower groups and distribute that evenly to the group from that person and anyone who bet higher than him
         for(let i = 0; i < rankingGroups.length; i++) {
             let moneyTaken = 0;
             for(let j = 0; j < rankingGroups[i].length; j++) {
+                // Specify the person who's bet we'll be looking at
                 let payReceiver = rankingGroups[i][j];
                 let pot = 0;
 
+                // Reduce the amount of money he takes from what he's already collected from previous group members
                 payReceiver.player.bet -= moneyTaken;
+                // For each other group, collect their money if they can pay it
                 for(let k = i+1; k < rankingGroups.length; k++) {
                     for(let l = 0; l < rankingGroups[k].length; l++) {
                         let payer = rankingGroups[k][l]
@@ -327,8 +340,13 @@ class Texasholdem {
                         }
                     }
                 }
+
+                // Update the total amount of money taken for this group already
                 moneyTaken += payReceiver.player.bet;
+
+                // Divide the money by the number of members who bet the same or more as this user
                 pot /= rankingGroups[i].length - j;
+                // Take remainder and distribute to the lowest betters first
                 let spareChips = Math.trunc((pot%1*(rankingGroups[i].length - j)));
                 pot = Math.trunc(pot);
                 for(let k = j; k < rankingGroups[i].length; k++) {
@@ -340,29 +358,27 @@ class Texasholdem {
                 }
             }
         }
+
+        for(let i = 0; i < rankings.length; i++) {
+            rankings[i].player.money += rankings[i].payout;
+        }
         console.log(rankingGroups);
 
-        // for(let i = 0; i < rankings.length; i++) {
-        //     for(let j = i+1; j < rankings.length; j++) {
-        //         let currentPlayer = rankings[j].player;
-        //         if(currentPlayer.bet < rankings[i].player.bet) {
-        //             rankings[i].payout += currentPlayer.bet;
-        //             rankings[j].payout -= currentPlayer.bet;
-        //             rankings[i].player.money += currentPlayer.bet;
-        //             currentPlayer.money -= currentPlayer.bet;
-        //             currentPlayer.bet = 0;
-        //         }
-        //         else {
-        //             rankings[i].payout += rankings[i].player.bet;
-        //             rankings[j].payout -= rankings[i].player.bet;
-        //             rankings[i].player.money += rankings[i].player.bet;
-        //             currentPlayer.money -= rankings[i].player.bet;
-        //             currentPlayer.bet -= rankings[i].player.bet;
-        //         }
-        //     }
-        // }
-
         return rankings;
+    }
+
+    getWinnerId() {
+        let currentPlayer = this.dealer;
+        let winnerId = null;
+        for(let i = 0; i < this.totalPlayers; i++) {
+            if(currentPlayer.money > 0) {
+                if(winnerId !== null)
+                    return null;
+                winnerId = currentPlayer.playerId;
+            }
+            currentPlayer = currentPlayer.next;
+        }
+        return winnerId;
     }
 
     _collectMoney(player, amount, totalNextPlayers) {
@@ -386,14 +402,17 @@ class Texasholdem {
     }
 
     _resetBetPhase() {
+        this.bettingRoundStarted = false;
         let currentPlayer = this.dealer;
         for(let i = 0; i < this.totalPlayers; i++) {
             // If the game is just starting, reset everyones moves, otherwise just reset those who have not folded or allined
             if(this.gameState === 'ready' || (currentPlayer.move !== 'fold' && currentPlayer.move !== 'allin'))
                 currentPlayer.move = null;
-            // Reset bets if game is just starting
-            if(this.gameState === 'ready')
+            // Reset bets, and hands if game is just starting
+            if(this.gameState === 'ready') {
                 currentPlayer.bet = 0;
+                currentPlayer.hand = [];
+            }
             currentPlayer = currentPlayer.next;
         }
 
@@ -421,35 +440,25 @@ class Texasholdem {
                 this.gameState = 'riverReady';
                 break;
             case 'river':
-                this.gameState = 'showdown';
+                this.gameState = 'ready';
         }
     }
 
     _numberOfValidPlayersLeft() {
         let playersLeft = this.totalPlayers;
-        let currentPlayer = this.currentBetter;
+        let currentPlayer = this.dealer;
         for(let i = 0; i < this.totalPlayers; i++) {
-            if(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0)
+            if(currentPlayer.move === 'fold' || currentPlayer.move === 'allin' || currentPlayer.money === 0)
                 playersLeft--;
+            currentPlayer = currentPlayer.next;
         }
         return playersLeft;
-    }
-
-    _setNextStage() {
-        if(this.gameState === 'preflop')
-            this.gameState = 'drawFlop';
-        else if(this.gameState === 'flop')
-            this.gameState = 'drawTurn';
-        else if(this.gameState === 'turn')
-            this.gameState = 'riverDraw';
-        else if(this.gameState === 'river')
-            this.gameState = 'showdown';
     }
 
     // Remove player by expected player object in linked list
     _removePlayer(player) {
         if(!player.next || !player.prev || !Number.isInteger(player.playerId))
-            throw `Error: ${player} is not a Player`;
+            throw Error(`${player} is not a Player`);
 
         // If the player is the dealer, set the dealer to the next player
         if(player.playerId === this.dealer.playerId)
@@ -463,122 +472,25 @@ class Texasholdem {
 var myTable = new Texasholdem();
 myTable.addPlayer(0, 5000);
 myTable.addPlayer(1, 10000);
-myTable.addPlayer(2, 15000);
-myTable.addPlayer(3, 20000);
-myTable.addPlayer(4, 25000);
-myTable.addPlayer(5, 30000);
 
-myTable.prepareRound();
-myTable.dealCards();
+// myTable.prepareRound();
+// myTable.dealCards();
 
-let bets = [];
+// myTable.getCurrentBetterOptions();
+// myTable.makeMove(1, 'allin');
+// myTable.makeMove(0, 'allin');
+// myTable.getCurrentBetterOptions();
 
-bets.push(myTable.getCurrentBetterOptions());
+// myTable.drawFlop();
+// myTable.getCurrentBetterOptions();
 
-myTable.makeMove(bets[bets.length-1].playerId, 'raise', 1000);
+// myTable.drawTurn();
+// myTable.getCurrentBetterOptions();
 
-bets.push(myTable.getCurrentBetterOptions());
+// myTable.drawRiver();
 
-myTable.makeMove(bets[bets.length-1].playerId, 'raise', 1000);
+// console.log(myTable.getRankings());
 
-bets.push(myTable.getCurrentBetterOptions());
+// console.log(myTable.getWinnerId());
 
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 99900);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-myTable.drawFlop();
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'bet', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
-
-myTable.drawTurn();
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
-
-myTable.drawRiver();
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
-
-bets.push(myTable.getCurrentBetterOptions());
-
-myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
-
-console.log(myTable.getRankings());
-console.log(bets);
 console.log(myTable);
