@@ -28,12 +28,12 @@ class Texasholdem {
         this.gameState = 'ready';
     }
 
-    addPlayer(playerId) {
+    addPlayer(playerId, money = 1000000) {
         if(!Number.isInteger(playerId))
             throw `Error: ${playerId} is not a valid playerId`;
         var newPlayer = {
             playerId: playerId,
-            money: this.playerStack,
+            money: money,
             hand: [],
             bet: 0,
             move: null,
@@ -60,7 +60,7 @@ class Texasholdem {
         this.deck = new Deck();
         this.deck.shuffle();
         this.communityCards = [];
-        
+
         this._resetBetPhase();
     }
 
@@ -125,7 +125,7 @@ class Texasholdem {
     dealCards() {
         if(this.gameState !== 'ready')
             throw `Error: Cannot deal cards during ${this.gameState} phase`;
-        
+
         var currentPlayer = this.dealer.next;
         for(let i = 0; i < this.totalPlayers*2; i++) {
             currentPlayer.hand.push(this.deck.draw());
@@ -140,7 +140,7 @@ class Texasholdem {
         while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
             this.currentBetter = this.currentBetter.next;
         }
-        
+
         return this.currentBetter;
     }
 
@@ -152,7 +152,7 @@ class Texasholdem {
         while(this.currentBetter.move === 'fold' || this.currentBetter.move === 'allin' || this.currentBetter.money === 0) {
             this.currentBetter = this.currentBetter.next;
         }
-        
+
         let options = ['allin'];
         if(this.currentBetter.bet < this.currentBet) {
             if(this.currentBetter.money > this.currentBet)
@@ -215,6 +215,17 @@ class Texasholdem {
         // Burn Card
         this.deck.draw();
 
+        //  this.communityCards.push(new Card('Ace', 'Hearts'));
+        //  this.communityCards.push(new Card('King', 'Hearts'));
+        //  this.communityCards.push(new Card('Queen', 'Hearts'));
+        //  this.communityCards.push(new Card('Jack', 'Hearts'));
+        // this.communityCards.push(new Card('Ten', 'Hearts'));
+        
+        //  this.communityCards.push(new Card('Ace', 'Hearts'));
+        //  this.communityCards.push(new Card('Three', 'Hearts'));
+        //  this.communityCards.push(new Card('Five', 'Hearts'));
+        //  this.communityCards.push(new Card('Eight', 'Hearts'));
+        //this.communityCards.push(new Card('Five', 'Hearts'));
         for(let i = 0; i < 3; i++) {
             this.communityCards.push(this.deck.draw());
         }
@@ -260,24 +271,118 @@ class Texasholdem {
         let rankings = [];
         for(let i = 0; i < this.totalPlayers; i++) {
             rankings.push({
-                playerId: currentPlayer.playerId,
+                player: currentPlayer,
                 hand: new Hand([...currentPlayer.hand, ...this.communityCards]),
-                move: currentPlayer.move
+                move: currentPlayer.move,
+                payout: 0
             });
             currentPlayer = currentPlayer.next;
         }
         rankings.sort((player1, player2) => {
+            if(player1.hand.isLessThan(player2.hand) || player1.move === 'fold')
+                return 1;
             if(player2.hand.isLessThan(player1.hand))
                 return -1;
-            if(player1.hand.isLessThan(player2.hand))
-                return 1;
             return 0;
         });
+
+        let currentIndex = 0;
+        let rankingGroups = [];
+        let groupIndex = 0;
+        // Group players if there are any ties
+        while(currentIndex < this.totalPlayers) {
+            let currentPlayer = rankings[currentIndex];
+            rankingGroups[groupIndex] = rankings.filter((player) => {
+                let isTie = !player.hand.isLessThan(currentPlayer.hand) && !currentPlayer.hand.isLessThan(player.hand);
+                if(isTie)
+                    currentIndex++;
+                return !player.hand.isLessThan(currentPlayer.hand) && !currentPlayer.hand.isLessThan(player.hand);
+            });
+            groupIndex++;
+        }
+
+        for(let i = 0; i < rankingGroups.length; i++) {
+            rankingGroups[i].sort((player1, player2) => player1.bet - player2.bet);
+        }
+
+        for(let i = 0; i < rankingGroups.length; i++) {
+            let moneyTaken = 0;
+            for(let j = 0; j < rankingGroups[i].length; j++) {
+                let payReceiver = rankingGroups[i][j];
+                let pot = 0;
+
+                payReceiver.player.bet -= moneyTaken;
+                for(let k = i+1; k < rankingGroups.length; k++) {
+                    for(let l = 0; l < rankingGroups[k].length; l++) {
+                        let payer = rankingGroups[k][l]
+                        if(payer.player.bet < payReceiver.player.bet) {
+                            pot += payer.player.bet;
+                            payer.payout -= payer.player.bet;
+                            payer.player.bet = 0;
+                        }
+                        else {
+                            pot += payReceiver.player.bet;
+                            payer.payout -= payReceiver.player.bet;
+                            payer.player.bet -= payReceiver.player.bet;
+                        }
+                    }
+                }
+                moneyTaken += payReceiver.player.bet;
+                pot /= rankingGroups[i].length - j;
+                let spareChips = Math.trunc((pot%1*(rankingGroups[i].length - j)));
+                pot = Math.trunc(pot);
+                for(let k = j; k < rankingGroups[i].length; k++) {
+                    rankingGroups[i][k].payout += pot;
+                    if(spareChips > 0) {
+                        rankingGroups[i][k].payout++;
+                        spareChips--;
+                    }
+                }
+            }
+        }
+        console.log(rankingGroups);
+
+        // for(let i = 0; i < rankings.length; i++) {
+        //     for(let j = i+1; j < rankings.length; j++) {
+        //         let currentPlayer = rankings[j].player;
+        //         if(currentPlayer.bet < rankings[i].player.bet) {
+        //             rankings[i].payout += currentPlayer.bet;
+        //             rankings[j].payout -= currentPlayer.bet;
+        //             rankings[i].player.money += currentPlayer.bet;
+        //             currentPlayer.money -= currentPlayer.bet;
+        //             currentPlayer.bet = 0;
+        //         }
+        //         else {
+        //             rankings[i].payout += rankings[i].player.bet;
+        //             rankings[j].payout -= rankings[i].player.bet;
+        //             rankings[i].player.money += rankings[i].player.bet;
+        //             currentPlayer.money -= rankings[i].player.bet;
+        //             currentPlayer.bet -= rankings[i].player.bet;
+        //         }
+        //     }
+        // }
 
         return rankings;
     }
 
-    _collectMoney(amount) {
+    _collectMoney(player, amount, totalNextPlayers) {
+        let pot = 0;
+        let currentPlayer = player.next;
+        // Collect amount from every player
+        for(let i = 0; i < totalNextPlayers; i++) {
+            if(currentPlayer.bet < amount) {
+                pot += currentPlayer.bet;
+                currentPlayer.money -= currentPlayer.bet;
+                currentPlayer.bet = 0;
+            }
+            else {
+                pot += amount;
+                currentPlayer.money -= amount;
+                currentPlayer.bet -= amount;
+            }
+            currentPlayer = currentPlayer.next;
+        }
+        return pot;
     }
 
     _resetBetPhase() {
@@ -301,7 +406,7 @@ class Texasholdem {
         }
         else
             this.currentBetter = this.dealer.next;
-        
+
     }
 
     _endBetPhase() {
@@ -356,9 +461,12 @@ class Texasholdem {
 }
 
 var myTable = new Texasholdem();
-myTable.addPlayer(0);
-myTable.addPlayer(1);
-myTable.addPlayer(2);
+myTable.addPlayer(0, 5000);
+myTable.addPlayer(1, 10000);
+myTable.addPlayer(2, 15000);
+myTable.addPlayer(3, 20000);
+myTable.addPlayer(4, 25000);
+myTable.addPlayer(5, 30000);
 
 myTable.prepareRound();
 myTable.dealCards();
@@ -381,11 +489,35 @@ bets.push(myTable.getCurrentBetterOptions());
 
 myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
 
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
 myTable.drawFlop();
 
 bets.push(myTable.getCurrentBetterOptions());
 
 myTable.makeMove(bets[bets.length-1].playerId, 'bet', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'call', 1000);
 
 bets.push(myTable.getCurrentBetterOptions());
 
@@ -409,21 +541,43 @@ bets.push(myTable.getCurrentBetterOptions());
 
 myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
 
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+
 myTable.drawRiver();
 
 bets.push(myTable.getCurrentBetterOptions());
 
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
 
 bets.push(myTable.getCurrentBetterOptions());
 
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
 
 bets.push(myTable.getCurrentBetterOptions());
 
-myTable.makeMove(bets[bets.length-1].playerId, 'check', 1000);
+myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
 
 bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
+
+bets.push(myTable.getCurrentBetterOptions());
+
+myTable.makeMove(bets[bets.length-1].playerId, 'allin', 1000);
 
 console.log(myTable.getRankings());
 console.log(bets);
