@@ -1,4 +1,4 @@
-class Hand {
+module.exports = class Hand {
     constructor(hand = []) {
         if(!Array.isArray(hand))
             throw Error(`${hand} is not an array`);

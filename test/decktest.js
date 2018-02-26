@@ -13,4 +13,22 @@ describe('Deck', () => {
             }
         });
     });
+    describe('#shuffle()', () => {
+        it('should shuffle with no errors', () => {
+            let deck = new Deck();
+            assert.doesNotThrow(() => deck.shuffle(), Error);
+        });
+    });
+    describe('#draw()', () => {
+        it('should draw cards if there are cards available', () => {
+            let deck = new Deck();
+            for(let i = 0; i < 52; i++) {
+                let card;
+                assert.doesNotThrow(() => {card = deck.draw();}, Error);
+                assert.instanceOf(card, Card);
+                assert.equal(deck.deck.length, 51 - i);
+            }
+            assert.throws(() => deck.draw(), Error);
+        });
+    });
 });
