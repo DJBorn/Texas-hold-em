@@ -1,7 +1,6 @@
 var chai = require('chai');
-var expect = chai.expect;
-var Card = require('../../Card.js')
 var assert = chai.assert;
+var Card = require('../Card.js')
 
 describe('Card', () => {
     describe('constructor', () => {

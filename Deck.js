@@ -1,4 +1,6 @@
-class Deck {
+var Card = require('./Card.js');
+
+module.exports = class Deck {
     constructor() {
         this.deck = [];
         const suits = ['Clubs', 'Diamonds', 'Hearts', 'Spades'];
