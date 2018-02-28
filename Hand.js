@@ -1,3 +1,5 @@
+var Card = require('./Card.js');
+
 module.exports = class Hand {
     constructor(hand = []) {
         if(!Array.isArray(hand))
@@ -253,7 +255,7 @@ module.exports = class Hand {
         
         possibleHands['four'] = {
             highCard: four[0],
-            kicker: highs[0]
+            kicker1: highs[0]
         }
         possibleHands['fullhouse'] = {
             highCard: triple[0],
